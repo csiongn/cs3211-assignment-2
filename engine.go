@@ -3,43 +3,47 @@ package main
 import "C"
 import (
 	"context"
-	"fmt"
-	"io"
 	"net"
-	"os"
 	"time"
 )
 
-type Engine struct{}
+const BufferSize = 100
+
+type Engine struct {
+	multiplexerChannel chan<- Order
+}
+
+func NewEngine(ctx context.Context) *Engine {
+	multiplexerChannel := make(chan Order, BufferSize)
+	NewMultiplexer(multiplexerChannel, ctx)
+	engine := &Engine{multiplexerChannel: multiplexerChannel}
+	return engine
+}
 
 func (e *Engine) accept(ctx context.Context, conn net.Conn) {
 	go func() {
 		<-ctx.Done()
 		conn.Close()
 	}()
-	go handleConn(conn)
+	go handleConn(conn, e.multiplexerChannel)
 }
 
-func handleConn(conn net.Conn) {
+func handleConn(conn net.Conn, multiplexer chan<- Order) {
 	defer conn.Close()
+	done := make(chan struct{})
 	for {
 		in, err := readInput(conn)
 		if err != nil {
-			if err != io.EOF {
-				_, _ = fmt.Fprintf(os.Stderr, "Error reading input: %v\n", err)
-			}
 			return
 		}
-		switch in.orderType {
-		case inputCancel:
-			fmt.Fprintf(os.Stderr, "Got cancel ID: %v\n", in.orderId)
-			outputOrderDeleted(in, true, GetCurrentTimestamp())
-		default:
-			fmt.Fprintf(os.Stderr, "Got order: %c %v x %v @ %v ID: %v\n",
-				in.orderType, in.instrument, in.count, in.price, in.orderId)
-			outputOrderAdded(in, GetCurrentTimestamp())
-		}
-		outputOrderExecuted(123, 124, 1, 2000, 10, GetCurrentTimestamp())
+
+		// Create new order object
+		order := NewOrder(in.orderId, 0, in.price, in.count, in.instrument,
+			in.orderType, done)
+
+		multiplexer <- order
+		// fmt.Fprintf(os.Stderr, "Sent order id %d to mux\n", order.orderId)
+		<-done
 	}
 }
 

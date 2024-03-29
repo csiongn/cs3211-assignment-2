@@ -33,20 +33,20 @@ func main() {
 		handleSigs(cancel)
 	}()
 
-	l, err := net.Listen("unix", socketPath)
+	listener, err := net.Listen("unix", socketPath)
 	if err != nil {
 		log.Fatal("listen error: ", err)
 	}
 	go func() {
 		<-ctx.Done()
-		if err := l.Close(); err != nil {
+		if err := listener.Close(); err != nil {
 			log.Fatal("close listener error: ", err)
 		}
 	}()
 
-	var e Engine
+	e := NewEngine(ctx)
 	for {
-		conn, err := l.Accept()
+		conn, err := listener.Accept()
 		if err != nil {
 			log.Fatal("accept error: ", err)
 		}

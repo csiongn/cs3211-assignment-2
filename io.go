@@ -22,7 +22,9 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
+	"io"
 	"net"
+	"os"
 	"unsafe"
 )
 
@@ -46,6 +48,9 @@ func readInput(conn net.Conn) (in input, err error) {
 	buf := make([]byte, unsafe.Sizeof(C.cInput{}))
 	_, err = conn.Read(buf)
 	if err != nil {
+		if err != io.EOF {
+			fmt.Fprintf(os.Stderr, "Error reading input: %v\n", err)
+		}
 		return
 	}
 
@@ -53,7 +58,7 @@ func readInput(conn net.Conn) (in input, err error) {
 	b := bytes.NewBuffer(buf)
 	err = binary.Read(b, binary.LittleEndian, &cin)
 	if err != nil {
-		fmt.Printf("read err: %v\n", err)
+		fmt.Printf("Error parsing input: %v\n", err)
 		return
 	}
 
@@ -75,6 +80,16 @@ func readInput(conn net.Conn) (in input, err error) {
 	// in.instrument = *(*string)(unsafe.Pointer(&tmp))
 
 	return
+}
+
+func OrderDeleted(o Order, accepted bool, outTime int64) {
+	i := input{o.inputType, o.orderId, o.price, o.count, o.instrument}
+	outputOrderDeleted(i, accepted, outTime)
+}
+
+func OrderAdded(o Order, outTime int64) {
+	i := input{o.inputType, o.orderId, o.price, o.count, o.instrument}
+	outputOrderAdded(i, outTime)
 }
 
 func outputOrderDeleted(in input, accepted bool, outTime int64) {

@@ -10,13 +10,13 @@ import (
 const BufferSize = 100
 
 type Engine struct {
-	multiplexerChannel chan<- Order
+	demultiplexerChannel chan<- Order
 }
 
 func NewEngine(ctx context.Context) *Engine {
-	multiplexerChannel := make(chan Order, BufferSize)
-	NewMultiplexer(multiplexerChannel, ctx)
-	engine := &Engine{multiplexerChannel: multiplexerChannel}
+	demultiplexerChannel := make(chan Order, BufferSize)
+	Newdemultiplexer(demultiplexerChannel, ctx)
+	engine := &Engine{demultiplexerChannel: demultiplexerChannel}
 	return engine
 }
 
@@ -25,10 +25,10 @@ func (e *Engine) accept(ctx context.Context, conn net.Conn) {
 		<-ctx.Done()
 		conn.Close()
 	}()
-	go handleConn(conn, e.multiplexerChannel)
+	go handleConn(conn, e.demultiplexerChannel)
 }
 
-func handleConn(conn net.Conn, multiplexer chan<- Order) {
+func handleConn(conn net.Conn, demultiplexer chan<- Order) {
 	defer conn.Close()
 	done := make(chan struct{})
 	for {
@@ -41,7 +41,7 @@ func handleConn(conn net.Conn, multiplexer chan<- Order) {
 		order := NewOrder(in.orderId, 0, in.price, in.count, in.instrument,
 			in.orderType, done)
 
-		multiplexer <- order
+		demultiplexer <- order
 		// fmt.Fprintf(os.Stderr, "Sent order id %d to mux\n", order.orderId)
 		<-done
 	}
